@@ -11,8 +11,8 @@ var (
 	caller = &endpoint{
 		displayName: "Ryan",
 		username:    "ryan",
-		host:        "192.168.0.2",
-		port:        5060,
+		host:        "localhost",
+		port:        5070,
 		transport:   "UDP",
 	}
 
@@ -20,7 +20,7 @@ var (
 	callee = &endpoint{
 		displayName: "Ryan's PC",
 		username:    "stefan",
-		host:        "192.168.0.9",
+		host:        "localhost",
 		port:        5060,
 		transport:   "UDP",
 	}
@@ -35,7 +35,8 @@ func main() {
 	}
 
 	// Receive an incoming call.
-	caller.ServeInvite()
+	// caller.ServeInvite()
+	caller.Invite(callee)
 
 	<-time.After(2 * time.Second)
 

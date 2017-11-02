@@ -5,6 +5,9 @@ import "github.com/stefankopieczek/gossip/base"
 // Utility methods for creating headers.
 
 func Via(e *endpoint, branch string) *base.ViaHeader {
+	params := base.NewParams()
+	params.Add("branch", base.String{branch})
+
 	return &base.ViaHeader{
 		&base.ViaHop{
 			ProtocolName:    "SIP",
@@ -12,46 +15,45 @@ func Via(e *endpoint, branch string) *base.ViaHeader {
 			Transport:       e.transport,
 			Host:            e.host,
 			Port:            &e.port,
-			Params: base.Params{
-				"branch": &branch,
-			},
+			Params: params,
 		},
 	}
 }
 
 func To(e *endpoint, tag string) *base.ToHeader {
 	header := &base.ToHeader{
-		DisplayName: &e.displayName,
+		DisplayName: base.String{e.displayName},
 		Address: &base.SipUri{
-			User:      &e.username,
+			User:      base.String{e.username},
 			Host:      e.host,
-			UriParams: base.Params{},
+			UriParams: base.NewParams(),
 		},
-		Params: base.Params{},
+		Params: base.NewParams(),
 	}
 
 	if tag != "" {
-		header.Params["tag"] = &tag
+		header.Params.Add("tag", base.String{tag})
 	}
 
 	return header
 }
 
 func From(e *endpoint, tag string) *base.FromHeader {
+	params := base.NewParams()
+	params.Add("transport", base.String{e.transport})
+
 	header := &base.FromHeader{
-		DisplayName: &e.displayName,
+		DisplayName: &base.String{e.displayName},
 		Address: &base.SipUri{
-			User: &e.username,
+			User: base.String{e.username},
 			Host: e.host,
-			UriParams: base.Params{
-				"transport": &e.transport,
-			},
+			UriParams: params,
 		},
-		Params: base.Params{},
+		Params: base.NewParams(),
 	}
 
 	if tag != "" {
-		header.Params["tag"] = &tag
+		header.Params.Add("tag", base.String{tag})
 	}
 
 	return header
@@ -59,9 +61,9 @@ func From(e *endpoint, tag string) *base.FromHeader {
 
 func Contact(e *endpoint) *base.ContactHeader {
 	return &base.ContactHeader{
-		DisplayName: &e.displayName,
+		DisplayName: base.String{e.displayName},
 		Address: &base.SipUri{
-			User: &e.username,
+			User: base.String{e.username},
 			Host: e.host,
 		},
 	}

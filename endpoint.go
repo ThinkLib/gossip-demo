@@ -7,6 +7,7 @@ import (
 	"github.com/stefankopieczek/gossip/base"
 	"github.com/stefankopieczek/gossip/log"
 	"github.com/stefankopieczek/gossip/transaction"
+	"github.com/stefankopieczek/gossip/transport"
 )
 
 type endpoint struct {
@@ -39,7 +40,8 @@ type txInfo struct {
 }
 
 func (e *endpoint) Start() error {
-	tm, err := transaction.NewManager(e.transport, fmt.Sprintf("%v:%v", e.host, e.port))
+	tp, err := transport.NewManager(e.transport)
+	tm, err := transaction.NewManager(tp, fmt.Sprintf("%v:%v", e.host, e.port))
 	if err != nil {
 		return err
 	}
@@ -66,7 +68,7 @@ func (caller *endpoint) Invite(callee *endpoint) error {
 	invite := base.NewRequest(
 		base.INVITE,
 		&base.SipUri{
-			User: &callee.username,
+			User: base.String{callee.username},
 			Host: callee.host,
 		},
 		"SIP/2.0",
@@ -92,9 +94,9 @@ func (caller *endpoint) Invite(callee *endpoint) error {
 			log.Info("Received response: %v", r.Short())
 			log.Debug("Full form:\n%v\n", r.String())
 			// Get To tag if present.
-			tag, ok := r.Headers("To")[0].(*base.ToHeader).Params["tag"]
+			tag, ok := r.Headers("To")[0].(*base.ToHeader).Params.Get("tag")
 			if ok {
-				caller.dialog.to_tag = *tag
+				caller.dialog.to_tag = tag.(*base.String).S
 			}
 
 			switch {
@@ -123,7 +125,7 @@ func (caller *endpoint) nonInvite(callee *endpoint, method base.Method) error {
 	request := base.NewRequest(
 		method,
 		&base.SipUri{
-			User: &callee.username,
+			User: base.String{callee.username},
 			Host: callee.host,
 		},
 		"SIP/2.0",
@@ -191,9 +193,9 @@ func (e *endpoint) ServeInvite() {
 	base.CopyHeaders("CSeq", tx.Origin(), resp)
 	resp.AddHeader(
 		&base.ContactHeader{
-			DisplayName: &e.displayName,
+			DisplayName: base.String{e.displayName},
 			Address: &base.SipUri{
-				User: &e.username,
+				User: base.String{e.username},
 				Host: e.host,
 			},
 		},
@@ -232,9 +234,9 @@ func (e *endpoint) ServeNonInvite() {
 	base.CopyHeaders("CSeq", tx.Origin(), resp)
 	resp.AddHeader(
 		&base.ContactHeader{
-			DisplayName: &e.displayName,
+			DisplayName: base.String{e.displayName},
 			Address: &base.SipUri{
-				User: &e.username,
+				User: base.String{e.username},
 				Host: e.host,
 			},
 		},
