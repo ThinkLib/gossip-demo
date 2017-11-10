@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/stefankopieczek/gossip/base"
-	"github.com/stefankopieczek/gossip/log"
-	"github.com/stefankopieczek/gossip/transaction"
-	"github.com/stefankopieczek/gossip/transport"
+	"github.com/ghettovoice/gossip/base"
+	"github.com/ghettovoice/gossip/log"
+	"github.com/ghettovoice/gossip/transaction"
+	"github.com/ghettovoice/gossip/transport"
 )
 
 type endpoint struct {
@@ -65,10 +65,13 @@ func (caller *endpoint) Invite(callee *endpoint) error {
 	caller.dialog.currentTx = txInfo{}
 	caller.dialog.currentTx.branch = branch
 
+	ctx, cancel := transport.NewContext()
+	defer cancel()
 	invite := base.NewRequest(
+		ctx,
 		base.INVITE,
 		&base.SipUri{
-			User: base.String{callee.username},
+			User: base.String{S: callee.username},
 			Host: callee.host,
 		},
 		"SIP/2.0",
@@ -122,10 +125,13 @@ func (caller *endpoint) Bye(callee *endpoint) error {
 
 func (caller *endpoint) nonInvite(callee *endpoint, method base.Method) error {
 	caller.dialog.currentTx.branch = "z9hG4bK.callbranch." + string(method)
+	ctx, cancel := transport.NewContext()
+	defer cancel()
 	request := base.NewRequest(
+		ctx,
 		method,
 		&base.SipUri{
-			User: base.String{callee.username},
+			User: base.String{S: callee.username},
 			Host: callee.host,
 		},
 		"SIP/2.0",
@@ -178,7 +184,10 @@ func (e *endpoint) ServeInvite() {
 	e.dialog.callId = string(*r.Headers("Call-Id")[0].(*base.CallId))
 
 	// Send a 200 OK
+	ctx, cancel := transport.NewContext()
+	defer cancel()
 	resp := base.NewResponse(
+		ctx,
 		"SIP/2.0",
 		200,
 		"OK",
@@ -193,9 +202,9 @@ func (e *endpoint) ServeInvite() {
 	base.CopyHeaders("CSeq", tx.Origin(), resp)
 	resp.AddHeader(
 		&base.ContactHeader{
-			DisplayName: base.String{e.displayName},
+			DisplayName: base.String{S: e.displayName},
 			Address: &base.SipUri{
-				User: base.String{e.username},
+				User: base.String{S: e.username},
 				Host: e.host,
 			},
 		},
@@ -219,7 +228,10 @@ func (e *endpoint) ServeNonInvite() {
 	log.Debug("Full form:\n%v\n", r.String())
 
 	// Send a 200 OK
+	ctx, cancel := transport.NewContext()
+	defer cancel()
 	resp := base.NewResponse(
+		ctx,
 		"SIP/2.0",
 		200,
 		"OK",
@@ -234,9 +246,9 @@ func (e *endpoint) ServeNonInvite() {
 	base.CopyHeaders("CSeq", tx.Origin(), resp)
 	resp.AddHeader(
 		&base.ContactHeader{
-			DisplayName: base.String{e.displayName},
+			DisplayName: base.String{S: e.displayName},
 			Address: &base.SipUri{
-				User: base.String{e.username},
+				User: base.String{S: e.username},
 				Host: e.host,
 			},
 		},

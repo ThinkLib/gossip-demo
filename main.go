@@ -3,7 +3,7 @@ package main
 import (
 	"time"
 
-	"github.com/stefankopieczek/gossip/log"
+	"github.com/ghettovoice/gossip/log"
 )
 
 var (

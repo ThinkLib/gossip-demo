@@ -1,12 +1,12 @@
 package main
 
-import "github.com/stefankopieczek/gossip/base"
+import "github.com/ghettovoice/gossip/base"
 
 // Utility methods for creating headers.
 
 func Via(e *endpoint, branch string) *base.ViaHeader {
 	params := base.NewParams()
-	params.Add("branch", base.String{branch})
+	params.Add("branch", base.String{S: branch})
 
 	return &base.ViaHeader{
 		&base.ViaHop{
@@ -22,9 +22,9 @@ func Via(e *endpoint, branch string) *base.ViaHeader {
 
 func To(e *endpoint, tag string) *base.ToHeader {
 	header := &base.ToHeader{
-		DisplayName: base.String{e.displayName},
+		DisplayName: base.String{S: e.displayName},
 		Address: &base.SipUri{
-			User:      base.String{e.username},
+			User:      base.String{S: e.username},
 			Host:      e.host,
 			UriParams: base.NewParams(),
 		},
@@ -32,7 +32,7 @@ func To(e *endpoint, tag string) *base.ToHeader {
 	}
 
 	if tag != "" {
-		header.Params.Add("tag", base.String{tag})
+		header.Params.Add("tag", base.String{S: tag})
 	}
 
 	return header
@@ -40,12 +40,12 @@ func To(e *endpoint, tag string) *base.ToHeader {
 
 func From(e *endpoint, tag string) *base.FromHeader {
 	params := base.NewParams()
-	params.Add("transport", base.String{e.transport})
+	params.Add("transport", base.String{S: e.transport})
 
 	header := &base.FromHeader{
-		DisplayName: &base.String{e.displayName},
+		DisplayName: &base.String{S: e.displayName},
 		Address: &base.SipUri{
-			User: base.String{e.username},
+			User: base.String{S: e.username},
 			Host: e.host,
 			UriParams: params,
 		},
@@ -53,7 +53,7 @@ func From(e *endpoint, tag string) *base.FromHeader {
 	}
 
 	if tag != "" {
-		header.Params.Add("tag", base.String{tag})
+		header.Params.Add("tag", base.String{S: tag})
 	}
 
 	return header
@@ -61,9 +61,9 @@ func From(e *endpoint, tag string) *base.FromHeader {
 
 func Contact(e *endpoint) *base.ContactHeader {
 	return &base.ContactHeader{
-		DisplayName: base.String{e.displayName},
+		DisplayName: base.String{S: e.displayName},
 		Address: &base.SipUri{
-			User: base.String{e.username},
+			User: base.String{S: e.username},
 			Host: e.host,
 		},
 	}
