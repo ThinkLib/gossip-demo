@@ -57,7 +57,7 @@ func (e *endpoint) ClearDialog() {
 
 func (caller *endpoint) Invite(callee *endpoint) error {
 	// Starting a dialog.
-	callid := "thisisacall" + string(caller.dialogIx)
+	callid := "thisisacall"
 	tag := "tag." + caller.username + "." + caller.host
 	branch := "z9hG4bK.callbranch.INVITE"
 	caller.dialog.callId = callid
@@ -65,7 +65,7 @@ func (caller *endpoint) Invite(callee *endpoint) error {
 	caller.dialog.currentTx = txInfo{}
 	caller.dialog.currentTx.branch = branch
 
-	ctx, cancel := transport.NewContext()
+	ctx, cancel := base.NewContext()
 	defer cancel()
 	invite := base.NewRequest(
 		ctx,
@@ -86,16 +86,14 @@ func (caller *endpoint) Invite(callee *endpoint) error {
 		},
 		"",
 	)
-	caller.dialog.cseq += 1
+	caller.dialog.cseq++
 
-	log.Info("Sending: %v", invite.Short())
+	invite.Log().Infof("Sending: %v", invite.Short())
 	tx := caller.tm.Send(invite, fmt.Sprintf("%v:%v", callee.host, callee.port))
 	caller.dialog.currentTx.tx = transaction.Transaction(tx)
 	for {
 		select {
 		case r := <-tx.Responses():
-			log.Info("Received response: %v", r.Short())
-			log.Debug("Full form:\n%v\n", r.String())
 			// Get To tag if present.
 			tag, ok := r.Headers("To")[0].(*base.ToHeader).Params.Get("tag")
 			if ok {
@@ -105,15 +103,16 @@ func (caller *endpoint) Invite(callee *endpoint) error {
 			switch {
 			case r.StatusCode >= 300:
 				// Call setup failed.
-				return fmt.Errorf("callee sent negative response code %v.", r.StatusCode)
+				return fmt.Errorf("callee sent negative response code %v", r.StatusCode)
 			case r.StatusCode >= 200:
+				<-time.After(1 * time.Second)
 				// Ack 200s manually.
-				log.Info("Sending Ack")
+				r.Log().Info("Sending Ack")
 				tx.Ack()
 				return nil
 			}
 		case e := <-tx.Errors():
-			log.Warn(e.Error())
+			tx.Log().Warn(e.Error())
 			return e
 		}
 	}
@@ -125,7 +124,7 @@ func (caller *endpoint) Bye(callee *endpoint) error {
 
 func (caller *endpoint) nonInvite(callee *endpoint, method base.Method) error {
 	caller.dialog.currentTx.branch = "z9hG4bK.callbranch." + string(method)
-	ctx, cancel := transport.NewContext()
+	ctx, cancel := base.NewContext()
 	defer cancel()
 	request := base.NewRequest(
 		ctx,
@@ -146,27 +145,25 @@ func (caller *endpoint) nonInvite(callee *endpoint, method base.Method) error {
 		},
 		"",
 	)
-	caller.dialog.cseq += 1
+	caller.dialog.cseq++
 
-	log.Info("Sending: %v", request.Short())
+	request.Log().Infof("Sending: %v", request.Short())
 	tx := caller.tm.Send(request, fmt.Sprintf("%v:%v", callee.host, callee.port))
 	caller.dialog.currentTx.tx = transaction.Transaction(tx)
 	for {
 		select {
 		case r := <-tx.Responses():
-			log.Info("Received response: %v", r.Short())
-			log.Debug("Full form:\n%v\n", r.String())
 			switch {
 			case r.StatusCode >= 300:
 				// Failure (or redirect).
-				return fmt.Errorf("callee sent negative response code %v.", r.StatusCode)
+				return fmt.Errorf("callee sent negative response code %v", r.StatusCode)
 			case r.StatusCode >= 200:
 				// Success.
-				log.Info("Successful transaction")
+				r.Log().Info("Successful transaction")
 				return nil
 			}
 		case e := <-tx.Errors():
-			log.Warn(e.Error())
+			tx.Log().Warn(e.Error())
 			return e
 		}
 	}
@@ -174,87 +171,48 @@ func (caller *endpoint) nonInvite(callee *endpoint, method base.Method) error {
 
 // Server side function.
 
-func (e *endpoint) ServeInvite() {
+func (e *endpoint) Serve() {
 	log.Info("Listening for incoming requests...")
-	tx := <-e.tm.Requests()
-	r := tx.Origin()
-	log.Info("Received request: %v", r.Short())
-	log.Debug("Full form:\n%v\n", r.String())
 
-	e.dialog.callId = string(*r.Headers("Call-Id")[0].(*base.CallId))
+	for tx := range e.tm.Requests() {
+		r := tx.Origin()
 
-	// Send a 200 OK
-	ctx, cancel := transport.NewContext()
-	defer cancel()
-	resp := base.NewResponse(
-		ctx,
-		"SIP/2.0",
-		200,
-		"OK",
-		[]base.SipHeader{},
-		"",
-	)
+		e.dialog.callId = string(*r.Headers("Call-Id")[0].(*base.CallId))
 
-	base.CopyHeaders("Via", tx.Origin(), resp)
-	base.CopyHeaders("From", tx.Origin(), resp)
-	base.CopyHeaders("To", tx.Origin(), resp)
-	base.CopyHeaders("Call-Id", tx.Origin(), resp)
-	base.CopyHeaders("CSeq", tx.Origin(), resp)
-	resp.AddHeader(
-		&base.ContactHeader{
-			DisplayName: base.String{S: e.displayName},
-			Address: &base.SipUri{
-				User: base.String{S: e.username},
-				Host: e.host,
+		// Send a 200 OK
+		resp := base.NewResponse(
+			r.Context(),
+			"SIP/2.0",
+			200,
+			"OK",
+			[]base.SipHeader{},
+			"",
+		)
+
+		base.CopyHeaders("Via", tx.Origin(), resp)
+		base.CopyHeaders("From", tx.Origin(), resp)
+		base.CopyHeaders("To", tx.Origin(), resp)
+		base.CopyHeaders("Call-Id", tx.Origin(), resp)
+		base.CopyHeaders("CSeq", tx.Origin(), resp)
+		resp.AddHeader(
+			&base.ContactHeader{
+				DisplayName: base.String{S: e.displayName},
+				Address: &base.SipUri{
+					User: base.String{S: e.username},
+					Host: e.host,
+				},
 			},
-		},
-	)
+		)
 
-	log.Info("Sending 200 OK")
-	<-time.After(1 * time.Second)
-	tx.Respond(resp)
+		<-time.After(1 * time.Second)
+		tx.Log().Info("Sending 200 OK")
+		tx.Respond(resp)
 
-	ack := <-tx.Ack()
-
-	log.Info("Received ACK")
-	log.Debug("Full form:\n%v\n", ack.String())
-}
-
-func (e *endpoint) ServeNonInvite() {
-	log.Info("Listening for incoming requests...")
-	tx := <-e.tm.Requests()
-	r := tx.Origin()
-	log.Info("Received request: %v", r.Short())
-	log.Debug("Full form:\n%v\n", r.String())
-
-	// Send a 200 OK
-	ctx, cancel := transport.NewContext()
-	defer cancel()
-	resp := base.NewResponse(
-		ctx,
-		"SIP/2.0",
-		200,
-		"OK",
-		[]base.SipHeader{},
-		"",
-	)
-
-	base.CopyHeaders("Via", tx.Origin(), resp)
-	base.CopyHeaders("From", tx.Origin(), resp)
-	base.CopyHeaders("To", tx.Origin(), resp)
-	base.CopyHeaders("Call-Id", tx.Origin(), resp)
-	base.CopyHeaders("CSeq", tx.Origin(), resp)
-	resp.AddHeader(
-		&base.ContactHeader{
-			DisplayName: base.String{S: e.displayName},
-			Address: &base.SipUri{
-				User: base.String{S: e.username},
-				Host: e.host,
-			},
-		},
-	)
-
-	log.Info("Sending 200 OK")
-	<-time.After(1 * time.Second)
-	tx.Respond(resp)
+		// await ACK on INVITE transaction only if response is >= 2xx
+		// if r.Method == base.INVITE {
+		// 	tx.Log().Warnf("Await for ACK request")
+		// 	ack := <-tx.Ack()
+		// 	ack.Log().Warnf("Received ACK %s", ack.Short())
+		// }
+	}
 }

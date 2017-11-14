@@ -1,10 +1,13 @@
 package main
 
 import (
+	"flag"
 	"time"
 
 	"github.com/ghettovoice/gossip/log"
 )
+
+var cmdFlag = flag.String("cmd", "", "run cmd: [caller, callee]")
 
 var (
 	// Caller parameters
@@ -27,19 +30,27 @@ var (
 )
 
 func main() {
+	flag.Parse()
 	log.SetDefaultLogLevel(log.DEBUG)
-	err := caller.Start()
-	if err != nil {
-		log.Warn("Failed to start caller: %v", err)
-		return
+
+	switch *cmdFlag {
+	case "caller":
+		err := caller.Start()
+		if err != nil {
+			log.Warn("Failed to start caller: %v", err)
+			return
+		}
+		caller.Invite(callee)
+		<-time.After(2 * time.Second)
+		caller.Bye(callee)
+	case "callee":
+		err := callee.Start()
+		if err != nil {
+			log.Warn("Failed to start callee: %v", err)
+			return
+		}
+		callee.Serve()
+	default:
+		log.Error("unknown command")
 	}
-
-	// Receive an incoming call.
-	// caller.ServeInvite()
-	caller.Invite(callee)
-
-	<-time.After(2 * time.Second)
-
-	// Send the BYE
-	caller.Bye(callee)
 }
